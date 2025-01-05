@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Confirm Delete</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body class="container mt-5">
+    <div class="col-md-6 offset-md-3 card p-4 shadow-sm">
+        <h2 class="text-center text-danger">Confirm Delete</h2>
+
+        <p class="text-center">Are you sure you want to delete this income record?</p>
+
+        <ul class="list-group mb-3">
+            <li class="list-group-item"><strong>Date:</strong> {{ income.exact_date }}</li>
+            <li class="list-group-item"><strong>Amount:</strong> {{ income.amount }} IRR</li>
+            <li class="list-group-item"><strong>Type:</strong> {{ income.type }}</li>
+            <li class="list-group-item"><strong>Category:</strong> {{ income.category }}</li>
+        </ul>
+
+        <form method="post" class="text-center">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Yes, Delete</button>
+            <a href="{% url 'income_list' %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</body>
+</html>

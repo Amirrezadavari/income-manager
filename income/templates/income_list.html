@@ -1,0 +1,314 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Income Records</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .card-stats {
+            transition: transform 0.2s;
+        }
+        .card-stats:hover {
+            transform: translateY(-5px);
+        }
+        .filter-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="container-fluid bg-light">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4 shadow">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-money-bill-wave me-2"></i>Income Manager
+            </a>
+            <div class="navbar-nav ms-auto">
+                {% if user.is_authenticated %}
+                    <span class="navbar-text me-3 text-white">Welcome, {{ user.username }}</span>
+                    <a class="btn btn-outline-light btn-sm" href="{% url 'logout' %}">Logout</a>
+                {% else %}
+                    <a class="btn btn-outline-light btn-sm" href="{% url 'login' %}">Login</a>
+                    <a class="btn btn-light btn-sm ms-2" href="{% url 'register' %}">Sign Up</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card card-stats bg-primary text-white shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Amount</h5>
+                        <h3 class="card-text">{{ total_amount|default:0|intcomma }} IRR</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card card-stats bg-success text-white shadow">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Records</h5>
+                        <h3 class="card-text">{{ total_records|default:0|intcomma  }}</h3>
+                    </div>
+                </div>
+            </div>
+				<div class="col-md-4">
+					<div class="card card-stats bg-info text-white shadow">
+						<div class="card-body">
+							<h5 class="card-title">Average Amount</h5>
+							<h3 class="card-text">{{ average_amount|intcomma  }} IRR</h3>
+						</div>
+					</div>
+				</div>
+        </div>
+
+
+		<!-- Filter Section -->
+		<div class="filter-section mb-4">
+			<form method="get" class="row g-3">
+				<!-- Amount Filters -->
+				<div class="col-md-3">
+					<label class="form-label">Amount is greater than:</label>
+					<input type="number" name="amount__gt" class="form-control" value="{{ filter.form.amount__gt.value|default:'' }}">
+				</div>
+				<div class="col-md-3">
+					<label class="form-label">Amount is less than:</label>
+					<input type="number" name="amount__lt" class="form-control" value="{{ filter.form.amount__lt.value|default:'' }}">
+				</div>
+		
+				<!-- Date Filters -->
+				<div class="col-md-3">
+					<label class="form-label">Start Date:</label>
+					<input type="date" name="start_date" class="form-control" value="{{ filter.form.start_date.value|date:'Y-m-d'|default:'' }}">
+				</div>
+				<div class="col-md-3">
+					<label class="form-label">End Date:</label>
+					<input type="date" name="end_date" class="form-control" value="{{ filter.form.end_date.value|date:'Y-m-d'|default:'' }}">
+				</div>
+		
+				<!-- Type Filter -->
+				<div class="col-md-3">
+					<label class="form-label">Type:</label>
+					<select name="type" class="form-control">
+						<option value="">All Types</option>
+						<option value="Cash" {% if filter.form.type.value == 'Cash' %}selected{% endif %}>Cash</option>
+						<option value="Non-Cash" {% if filter.form.type.value == 'Non-Cash' %}selected{% endif %}>Non-Cash</option>
+					</select>
+				</div>
+		
+				<!-- Category Filter -->
+				<div class="col-md-2">
+					<label class="form-label">Category:</label>
+					<select name="category" class="form-control">
+						<option value="">All Categories</option>
+						{% for category in filter.form.category.field.choices %}
+							<option value="{{ category.0 }}" {% if filter.form.category.value == category.0 %}selected{% endif %}>
+								{{ category.1 }}
+							</option>
+						{% endfor %}
+					</select>
+				</div>
+		
+				<!-- Filter Buttons -->
+				<div class="col-12">
+					<button type="submit" class="btn btn-primary">Apply Filters</button>
+					<a href="{% url 'income_list' %}" class="btn btn-secondary">Reset</a>
+				</div>
+			</form>
+		</div>
+
+
+        <!-- Charts Section -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <canvas id="monthlyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <canvas id="typeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="mb-4">
+            <div class="btn-group">
+                <a href="{% url 'export_to_excel' %}" class="btn btn-success">
+                    <i class="fas fa-file-excel me-1"></i>Export to Excel
+                </a>
+                <a href="{% url 'export_to_csv' %}" class="btn btn-info">
+                    <i class="fas fa-file-csv me-1"></i>Export to CSV
+                </a>
+                <a href="{% url 'import_income' %}" class="btn btn-warning">
+                    <i class="fas fa-file-import me-1"></i>Import Data
+                </a>
+                <a href="{% url 'income_add' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>Add New Income
+                </a>
+            </div>
+        </div>
+
+        <!-- Income Table -->
+        <div class="card shadow">
+            <div class="card-body">
+                <table class="table table-hover table-striped">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Date</th>
+                            <th>Amount (IRR)</th>
+                            <th>Type</th>
+                            <th>Category</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for income in page_obj %}
+                        <tr>
+                            <td>{{ income.jalali_date }}</td>
+                            <td>{{ income.amount|intcomma }}</td>
+                            <td>
+                                <span class="badge {% if income.type == 'Cash' %}bg-success{% else %}bg-info{% endif %}">
+                                    {{ income.type }}
+                                </span>
+                            </td>
+                            <td>{{ income.category }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'income_edit' income.pk %}" class="btn btn-warning">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'income_delete' income.pk %}" class="btn btn-danger">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">No income records found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <!-- Pagination -->
+                {% if page_obj.has_other_pages %}
+                <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1">&laquo; First</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                            </li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://kit.fontawesome.com/your-code.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <script>
+        // Initialize charts with the data from Django
+        const chartData = {{ chart_data|safe }};
+        
+        // Monthly Chart
+        new Chart(document.getElementById('monthlyChart'), {
+            type: 'line',
+            data: {
+                labels: chartData.monthly.labels,
+                datasets: [{
+                    label: 'Monthly Income',
+                    data: chartData.monthly.data,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            }
+        });
+
+	// Type Chart
+	new Chart(document.getElementById('typeChart'), {
+		type: 'pie',
+		data: {
+			labels: chartData.type.labels,
+			datasets: [{
+				data: chartData.type.data,
+				backgroundColor: ['rgb(54, 162, 235)', 'rgb(255, 99, 132)']
+			}]
+		},
+		options: {
+			plugins: {
+				title: {
+					display: true,
+					text: 'Cash vs Non-Cash Distribution'
+				},
+				tooltip: {
+					callbacks: {
+						label: function(context) {
+							const label = context.label || '';
+							const value = context.raw || 0;
+							const total = context.dataset.data.reduce((a, b) => a + b, 0);
+							const percentage = ((value / total) * 100).toFixed(1);
+							return `${label}: ${percentage}% (${value.toLocaleString()} IRR)`;
+						}
+					}
+				},
+				legend: {
+					position: 'bottom'
+				},
+				datalabels: {
+					color: '#fff',
+					font: {
+						weight: 'bold',
+						size: 14
+					},
+					formatter: function(value, context) {
+						const total = context.dataset.data.reduce((a, b) => a + b, 0);
+						const percentage = ((value / total) * 100).toFixed(1);
+						return percentage + '%';
+					},
+					anchor: 'center',
+					align: 'center'
+				}
+			}
+		},
+		plugins: [ChartDataLabels]
+	});
+	
+
+    </script>
+</body>
+</html>
